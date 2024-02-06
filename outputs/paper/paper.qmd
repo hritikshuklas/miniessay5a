@@ -2,9 +2,12 @@
 title: "Mini Essay 5a"
 author: "Hritik Shukla"
 date: today
+date-format: long
 format: pdf
 editor: visual
+number-sections: true
 thanks: "Code and data are available at: https://github.com/hritikshuklas/miniessay5a"
+bibliography: references.bib
 ---
 
 ```{r}
@@ -24,88 +27,13 @@ library(kableExtra)
 cleaned_data <- read_csv("../data/cleaned_data.csv")
 ```
 
-Getting HTML data and saving it locally
+## Scraping the Data
 
-```{r}
-#| echo: false
+Using R [@citeR] and the rvest library [@rvest], the list of Australian Prime Ministers and their birth and death years were scraped from Wikipedia [@wiki]. First the raw HTML data was scraped and saved locally to avoid sending repeated calls to Wikipedia's servers. From within this data, the ".wikitable" element was extracted, which was an HTML table which contained all of the data regarding Prime Ministers.
 
-raw_data <- read_html("https://en.wikipedia.org/wiki/List_of_prime_ministers_of_Australia")
-write_html(raw_data, "pms.html")
-```
+NThe table obtained from the raw HTML file contained our required information in a single column, in the either format "Name(YOB-YOD)Constituency" for deceased Prime Ministers or "Name(b. YOB)Constituency" for PMs who are currently alive. To extract this information into a usable data frame, we used the following libraries - tidyverse [@tidyverse], dplyr [@dplyr], janitor [@janitor].First, the column was extracted from the raw data, and the information was separated into individual columns. Finally, the age of the prime ministers was calculated from the given year of birth and year of death. Note that these ages are not completely accurate as we have only been provided with their year of birth and death, and not the particular dates.
 
-Reading the locally saved HTML file into a tibble
-
-```{r}
-#| echo: false
-
-raw_data <- read_html("pms.html")
-parse_data_selector_gadget <-
-  raw_data |>
-  html_element(".wikitable") |>
-  html_table()
-
-head(parse_data_selector_gadget)
-```
-
-Cleaning column names and keeping only the required column
-
-```{r}
-#| echo: false
-
-parsed_data <-
-  parse_data_selector_gadget |> 
-  clean_names() |> 
-  rename(raw_text = name_birth_death_constituency) |> 
-  select(raw_text) |> 
-  filter(raw_text != "Name(Birth–Death)Constituency") |> 
-  distinct() 
-
-head(parsed_data)
-```
-
-Separating data into three columns - name, date (birth-death), or born (if currently alive).
-
-```{r}
-#| echo: false
-
-initial_clean <-
-  parsed_data |>
-  separate(
-    raw_text, into = c("name", "not_name"), sep = "\\(", extra = "merge",
-  ) |> 
-  mutate(date = str_extract(not_name, "[[:digit:]]{4}–[[:digit:]]{4}"),
-         born = str_extract(not_name, "b.[[:space:]][[:digit:]]{4}")
-         ) |>
-  select(name, date, born)
-  
-head(initial_clean)
-```
-
-Separating birth years and death years(if there is one) for both currently alive and dead PMs.
-
-```{r}
-#| echo: false
-#| include: false
-cleaned_data <-
-  initial_clean |>
-  separate(date, into = c("birth", "died"), 
-           sep = "–") |>   # PMs who have died have their birth and death years 
-  # separated by a hyphen, but we need to be careful with the hyphen as it seems 
-  # to be a slightly odd type of hyphen and we need to copy/paste it.
-  mutate(
-    born = str_remove_all(born, "b.[[:space:]]"),
-    birth = if_else(!is.na(born), born, birth)
-  ) |> # Alive PMs have slightly different format
-  select(-born) |>
-  rename(born = birth) |> 
-  mutate(across(c(born, died), as.integer)) |> 
-  mutate(Age_at_Death = died - born) |> 
-  distinct() # Some of the PMs had two goes at it.
-
-head(cleaned_data)
-```
-
-Giving columns more readable headers.
+## Exploring the Data
 
 ```{r}
 #| echo: false
@@ -118,7 +46,7 @@ cleaned_data |>
     )
 ```
 
-Plotting the lifespans of all prime ministers:
+After we cleaned up our data, we ended up with the dataset shown in @tbl-lifespan_data. Some of the challenges encountered while acquiring this data was separately managing the ages of still alive and deceased Prime Ministers, as both cases had different ways to representing their birth relevant (and death) years. Figuring out which element in the HTML file contained the relevant information was much easier when it was done on the locally saved file, saved as "pms.html" in the data folder within inputs. Once these finer details were figured out, it was smooth sailing from that point on.
 
 ```{r}
 #| echo: false
@@ -141,3 +69,7 @@ cleaned_data |>
   scale_color_brewer(palette = "Set1") +
   theme(legend.position = "bottom")
 ```
+
+Looking at @fig-pm_lifespans, we can see the deceased Prime Ministers' lifespans are depicted in read, and currently alive Prime Ministers are shown in blue. The Prime Ministers are listed from most recent to oldest, in terms of when they held the office. While there isn't a huge age gap between consecutive prime ministers generally, there are some outliers that stand out, such as from Chris Watson to George Reid, as well as from Stanley Bruce to James Scullin. There is no trend in preference for a younger or older consecutive prime minister. The age preference is seemingly random. 
+
+## References
